@@ -40,6 +40,18 @@ public class Transaction {
 	@Column(name = "payment_mode", length = 30)
 	private String paymentMode;
 
+	@Column(name = "reward_points", nullable = false)
+	private Integer rewardPoints = 0;
+
+	@Column(
+	        name = "cashback_amount",
+	        nullable = false,
+	        precision = 15,
+	        scale = 2
+	)
+	private BigDecimal cashbackAmount = BigDecimal.ZERO;
+	
+	
 	public Transaction() {
 	}
 
@@ -112,5 +124,21 @@ public class Transaction {
 
 	public void setPaymentMode(String paymentMode) {
 		this.paymentMode = paymentMode;
+	}
+	
+	public Integer getRewardPoints() {
+	    return rewardPoints;
+	}
+
+	public void setRewardPoints(Integer rewardPoints) {
+	    this.rewardPoints = rewardPoints;
+	}
+
+	public BigDecimal getCashbackAmount() {
+	    return cashbackAmount;
+	}
+
+	public void setCashbackAmount(BigDecimal cashbackAmount) {
+	    this.cashbackAmount = cashbackAmount;
 	}
 }
