@@ -16,7 +16,9 @@ public class TransactionResponse {
     private LocalDateTime transactionDateTime;
     private TransactionStatus status;
     private String paymentMode;
-
+    private Integer rewardPoints;
+    private BigDecimal cashbackAmount;
+    
     public TransactionResponse() {
     }
 
@@ -28,7 +30,9 @@ public class TransactionResponse {
             BigDecimal amount,
             LocalDateTime transactionDateTime,
             TransactionStatus status,
-            String paymentMode) {
+            String paymentMode,
+            Integer rewardPoints,
+            BigDecimal cashbackAmount) {
 
         this.transactionId = transactionId;
         this.cardId = cardId;
@@ -38,6 +42,8 @@ public class TransactionResponse {
         this.transactionDateTime = transactionDateTime;
         this.status = status;
         this.paymentMode = paymentMode;
+        this.rewardPoints = rewardPoints;
+        this.cashbackAmount = cashbackAmount;
     }
 
     public Long getTransactionId() {
@@ -52,7 +58,15 @@ public class TransactionResponse {
         return cardId;
     }
 
-    public void setCardId(Long cardId) {
+    public Integer getRewardPoints() {
+		return rewardPoints;
+	}
+
+	public void setRewardPoints(Integer rewardPoints) {
+		this.rewardPoints = rewardPoints;
+	}
+
+	public void setCardId(Long cardId) {
         this.cardId = cardId;
     }
 
@@ -103,5 +117,12 @@ public class TransactionResponse {
 
     public void setPaymentMode(String paymentMode) {
         this.paymentMode = paymentMode;
+    }
+    public BigDecimal getCashbackAmount() {
+        return cashbackAmount;
+    }
+
+    public void setCashbackAmount(BigDecimal cashbackAmount) {
+        this.cashbackAmount = cashbackAmount;
     }
 }
