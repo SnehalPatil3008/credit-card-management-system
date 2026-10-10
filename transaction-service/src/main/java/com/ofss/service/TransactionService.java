@@ -1,6 +1,7 @@
 package com.ofss.service;
 
 import com.ofss.dto.BalanceUpdateRequest;
+import com.ofss.dto.CardStatusResponse;
 import com.ofss.dto.TransactionRequest;
 import com.ofss.dto.TransactionResponse;
 import com.ofss.entity.Transaction;
@@ -15,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -28,51 +30,72 @@ public class TransactionService {
 	private RestTemplate restTemplate;
 
 	public TransactionResponse createTransaction(TransactionRequest request) {
+	    CardStatusResponse cardStatus = restTemplate.getForObject(
+	            "http://credit-card-service/api/cards/{cardId}",
+	            CardStatusResponse.class,
+	            request.getCardId()
+	    );
 
-		Transaction transaction = new Transaction();
+	    if (cardStatus == null || !"ACTIVE".equals(cardStatus.getCardStatus())) {
+	        throw new IllegalArgumentException(
+	                "Transaction cannot be processed. Credit card is blocked"
+	        );
+	    }
 
-		transaction.setCardId(request.getCardId());
-		transaction.setMerchantId(request.getMerchantId());
-		transaction.setTransactionType(request.getTransactionType());
-		transaction.setAmount(request.getAmount());
-		transaction.setTransactionDateTime(request.getTransactionDateTime());
-		transaction.setStatus(request.getStatus());
-		transaction.setPaymentMode(request.getPaymentMode());
+	    Transaction transaction = new Transaction();
+	    transaction.setCardId(request.getCardId());
+	    transaction.setMerchantId(request.getMerchantId());
+	    transaction.setTransactionType(request.getTransactionType());
+	    transaction.setAmount(request.getAmount());
+	    transaction.setTransactionDateTime(request.getTransactionDateTime());
+	    transaction.setStatus(request.getStatus());
+	    transaction.setPaymentMode(request.getPaymentMode());
 
-		if (request.getStatus() == TransactionStatus.SUCCESS) {
+	    if (request.getStatus() == TransactionStatus.SUCCESS) {
+	        BalanceUpdateRequest balanceRequest = new BalanceUpdateRequest();
+	        balanceRequest.setAmount(request.getAmount());
+	        balanceRequest.setTransactionType(request.getTransactionType().name());
 
-			BalanceUpdateRequest balanceRequest = new BalanceUpdateRequest();
+	        restTemplate.postForObject(
+	                "http://credit-card-service/api/cards/{cardId}/balance",
+	                balanceRequest,
+	                Object.class,
+	                request.getCardId()
+	        );
+	    }
 
-			balanceRequest.setAmount(request.getAmount());
-			balanceRequest.setTransactionType(request.getTransactionType().name());
+	    if (request.getTransactionType() == TransactionType.PURCHASE
+	            && request.getStatus() == TransactionStatus.SUCCESS) {
 
-			restTemplate.postForObject("http://credit-card-service/api/cards/{cardId}/balance", balanceRequest,
-					Object.class, request.getCardId());
-		}
+	        int points = request.getAmount().divide(BigDecimal.valueOf(100), 0, RoundingMode.DOWN).intValue();
+	        BigDecimal cashback = request.getAmount().divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
 
-		if (request.getTransactionType() == TransactionType.PURCHASE
-				&& request.getStatus() == TransactionStatus.SUCCESS) {
+	        transaction.setRewardPoints(points);
+	        transaction.setCashbackAmount(cashback);
 
-			int points = request.getAmount().divide(BigDecimal.valueOf(100)).intValue();
+	        BalanceUpdateRequest rewardRequest = new BalanceUpdateRequest();
+	        rewardRequest.setRewardPoints(points);
 
-			BigDecimal cashback = request.getAmount().multiply(BigDecimal.ONE).divide(BigDecimal.valueOf(100));
+	        restTemplate.postForObject(
+	                "http://credit-card-service/api/cards/{cardId}/cashback?cashbackAmount={cashbackAmount}",
+	                null,
+	                Object.class,
+	                transaction.getCardId(),
+	                cashback
+	        );
+	        restTemplate.postForObject(
+	                "http://credit-card-service/api/cards/{cardId}/rewards?rewardPoints={rewardPoints}",
+	                null,
+	                Object.class,
+	                transaction.getCardId(),
+	                points
+	        );
+	    } else {
+	        transaction.setRewardPoints(0);
+	        transaction.setCashbackAmount(BigDecimal.ZERO);
+	    }
 
-			transaction.setRewardPoints(points);
-			transaction.setCashbackAmount(cashback);
-			BalanceUpdateRequest rewardRequest = new BalanceUpdateRequest();
-			rewardRequest.setRewardPoints(points);
-			restTemplate.postForObject(
-					"http://credit-card-service/api/cards/{cardId}/cashback" + "?cashbackAmount={cashbackAmount}", null,
-					Object.class, transaction.getCardId(), cashback);
-			restTemplate.postForObject(
-					"http://credit-card-service/api/cards/{cardId}/rewards" + "?rewardPoints={rewardPoints}", null,
-					Object.class, transaction.getCardId(), points);
-		} else {
-			transaction.setRewardPoints(0);
-			transaction.setCashbackAmount(BigDecimal.ZERO);
-		}
-
-		return mapToResponse(transactionRepository.save(transaction));
+	    return mapToResponse(transactionRepository.save(transaction));
 	}
 
 	public TransactionResponse getTransactionById(Long transactionId) {
